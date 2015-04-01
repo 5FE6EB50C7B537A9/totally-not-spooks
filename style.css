@@ -1,0 +1,74 @@
+.centermsg {
+    text-align: center;
+}
+
+.join {
+    color: green;
+}
+
+.left {
+    color: red;
+}
+
+.nick {
+    color: orange;
+}
+
+#red {
+    border-color: red;
+}
+
+#wall_of_text {
+    display: block;
+}
+
+#wall_of_text > div > ul {
+    position: static;
+    overflow-y: visible;
+}
+
+body {
+    display: flex;
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+div {
+    position: relative;
+    flex-grow: 1;
+}
+
+form {
+    margin: 2px 3px;
+}
+
+html {
+    height: 100%;
+}
+
+input {
+    box-sizing: border-box;
+    border: thin solid #000;
+    padding: 2px;
+    width: 100%;
+    font-size: large;
+}
+
+li {
+    margin: 0 2px;
+    border-bottom: thin solid #000;
+    padding: 0 2px;
+    word-wrap: break-word;
+}
+
+ul {
+    position: absolute;
+    right: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-y: scroll;
+}
