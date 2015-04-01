@@ -17,9 +17,9 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
       "error-message": newMessage,
       "centermsg": fromserver_centermsg,
       "online": function(arr){arr.forEach(fromserver_join)},
-      "join": fromserver_join, //function(obj){createLine(addUser(obj.id,obj.nick))},
-      "nick": fromserver_nick, //function(obj){createLine(rename(obj.id,obj.nick))},
-      "left": fromserver_left, //function(obj){removeUser(obj.id,obj.nick));console.log(obj)},
+      "join": fromserver_join,
+      "nick": fromserver_nick,
+      "left": fromserver_left,
       "refresh": function(obj){createLine("You might want to refresh ...")},
       "updateMousePosition": function(obj){/*socket.send("42"+JSON.stringify(["updateMousePosition",obj.position]))*/}
   }
@@ -67,18 +67,11 @@ function createLine(HTML) {
 };
 function nickColor(nick) { // num0, str0
   num0 = online_nick.indexOf(nick);
-  if (num0 == -1) str0 = "color:purple"; // something weird is going on ...
+  if (num0 == -1) str0 = 'color:purple'; // something weird is going on ...
   else str0 = online_meow[num0];
-  return "<span style="+str0+">"+HTMLescape(nick)+"</span>";
+  return '<span style='+str0+'>'+HTMLescape(nick)+'</span>';
 };
 function fromserver_centermsg(obj) {
-  if (active == 1) {
-    red.removeAttribute("id");
-    red = ul.lastChild;
-    red.setAttribute("id", "red");
-    active = 2;
-  };
-  
   li = document.createElement("li");
   li.innerHTML = HTMLescape(obj.msg);
   li.classList.add("centermsg");
@@ -86,13 +79,13 @@ function fromserver_centermsg(obj) {
   li.scrollIntoView(false);
 }
 function fromserver_join(obj) { // num0, num1, num2, str0
-  str0 = "background:#";
+  str0 = 'background:#';
   num0 = 0; num1 = 0; num2 = obj.id.length;
   while (num1 != num2) num0 = (num0 << 5) - num0 + obj.id.charCodeAt(num1++);
   num0 >>>= 8; num1 = num0 & 0xFF; str0 = str0 + (num0+0x1000000).toString(16).slice(1);
   num0 >>>= 8; num2 = num0 & 0xFF;
-  num0 >>>= 8; // num3 = num0 & 0xFF;
-  str0 = str0 + ";color:" + (Math.max(num1, num2, num0) + Math.min(num1, num2, num0) > 256 ? "black" : "white");
+  num0 >>>= 8;
+  str0 = str0 + ';color:' + (Math.max(num1, num2, num0) + Math.min(num1, num2, num0) > 256 ? "black" : "white");
   
   online_nick.push(obj.nick);
   online_code.push(obj.id);
@@ -158,9 +151,9 @@ function newMessage(message) {
       if (message.from == session) { // sent back from the server
         num0 = online_code.indexOf(message.to);
         if (num0 == -1) break;
-        createLine(HTMLescape(online_nick[num0])+"&lt;=="+HTMLescape(message.message, 0))
+        createLine(HTMLescape(online_nick[num0])+'&lt;=='+HTMLescape(message.message, 0))
       } else { // you got mail
-        createLine(HTMLescape(message.nick)+"==&gt;"+HTMLescape(message.message, 0))
+        createLine(HTMLescape(message.nick)+'==&gt;'+HTMLescape(message.message, 0))
       }
       break;
     default:
@@ -182,7 +175,7 @@ function command_clear() {
 };
 function command_list() {
   for (num0 = 0; num0 != online_l; num0++) {
-    createLine('<samp>'+online_code[num0]+'</samp>'+HTMLescape(online_nick[num0])) // table maybe?
+    createLine('<samp>'+online_code[num0]+'</samp>'+HTMLescape(online_nick[num0]))
   };
 };
 function command_help(command) {
@@ -213,49 +206,52 @@ socket.addEventListener("message", function(event) { // arr0, str0, str1; sessio
   switch (str0.match(/^\d\d?/)[0]) {
     case "0":
       session = str0.match(/"sid":"([\w-]+)"/)[1];
-      if (channel_l != 0) socket.send("40"+ channel);
+      socket.send("40"+ channel);
       str0 = location.search;
       if (/[?&]flair=[^&]/.test(str0)) {
         flair = decodeURIComponent(str0.match(/[?&]flair=(.*?)(&|$)/)[1]);
       } else {
         flair = session; // why not
       };
+      // fallthrough
     case "3":
       lastTimeout = setTimeout(function(){
         clearTimeout(lastTimeout);
         socket.send("2");
-      }, 25000); // hardcoding the setting since no-one tampered with them
+      }, 25000); // hardcoding the setting
       break;
     case "40":
       if (channel_l == 0 || str0.slice(2,2+channel_l) == channel) {
         if (channel_l != 0) { channel += ","; channel_l++ };
-        if (location.hash == "#silent") return;
+        if (location.hash == "#silent") return; // because you can, obviously
         str0 = location.search;
-        if (/[?&](nick|(user)?name)=[^&]/.test(str0) && /[?&]pass(word)?=[^&]/.test(str0)) { // regexp yay
-          str1 = '42'
-          str1 += channel;
-          str1 += '["join",{"nick":"';
-          str1 += str0.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3]; // nick / username / name
-          str1 += '","password":"';
-          str1 += str0.match(/[?&]pass(word)?=(.*?)(&|$)/)[2]; // pass / password
-          str1 += '"}]';
-          socket.send(unescape(decodeURIComponent(str1)));
+        if (/[?&](nick|(user)?name)=[^&]/.test(str0) && /[?&]pass(word)?=[^&]/.test(str0)) {
+          str1 = unescape(decodeURIComponent(str0.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3])); // nick / username / name
+          str0 = unescape(decodeURIComponent(str0.match(/[?&]pass(word)?=(.*?)(&|$)/)[2])); // pass / password
+          socket.send("42"+channel+JSON.stringify(["join",{"nick":str1,"password":str0}]));
         } else {
-          // socket.send('42["join",{"nick":"'+session+'","password":"invalid"}]');
-          socket.send('42'+channel+'["join",{"nick":null,"password":null}]');
-        };
-        if (/[?&]part=[^&]/.test(str0)) {
-          socket.send('42'+channel+'["command",{"name":"mask","params":{"vHost":"'+ decodeURIComponent(str0.match(/[?&]part=(.*?)(&|$)/)[1]) +'"}}]');
+          socket.send("42"+channel+JSON.stringify(["join",{"nick":null,"password":null}]));
         }
-        socket.send('42'+channel+'["command",{"name":"part","params":{"message":"https://\
-dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png?'+ (+new Date()).toString(36) +'"}}]');
-        // socket.send('42'+channel+'["updateMousePosition",{"x":9,"y":9}]'); // why not #2
+        str0 = location.search; // no ternary here please, already hard enough to read
+        if (/[?&]part=[^&]/.test(str0)) {
+          str1 = decodeURIComponent(str0.match(/[?&]part=(.*?)(&|$)/)[1]) // part
+        } else {
+          str1 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
+          str1 = "https://dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png";
+        }
+        socket.send("42"+channel+JSON.stringify(["command",{"name":"part","params":{
+          "message": str1
+        }}]))
       }
       break;
+    case "41":
+      channel = channel.slice(0, -1);
+      channel_l --;
+      socket.send("40"+ channel);
+      break;
     case "42":
-      if (channel_l == 0 || str0.slice(2,2+channel_l) == channel) {
+      if (channel_l == 0 || str0.slice(2, channel_l +2) == channel) {
         arr0 = JSON.parse(str0.slice(2+channel_l));
-        // if (arr0[0].constructor == String || arr0[1].constructor == Object) console.log(arr0);
         (fromserver[arr0[0]]||fromserver["###"])(arr0[1]);
       }
       break;
@@ -264,7 +260,7 @@ dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png?'+ (+new Date()).toString
       break;
   };
 });
-form.addEventListener("submit", function form_submit(event) { // num0, arr0, arr1, str0, str1, obj0; commands
+form.addEventListener("submit", function(event) { // num0, arr0, arr1, str0, str1, obj0; commands
   event.preventDefault();
   str0 = input.value;
   if (str0.charAt(0) == "/" && /^\/\w\w+/.test(str0)) {
