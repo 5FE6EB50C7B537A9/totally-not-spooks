@@ -13,15 +13,16 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
   , num0 = 0, num1 = 0, num2 = 0, num3 = 0, arr0 = [], arr1 = [], str0 = "", str1 = "", obj0 = {}
   // settings, sortof
   , fromserver = {
-      "###": function(){console.log(arr0)},
+      "###": function(){debugger},
       "message": message_message,
-      "error-message": message_error,
       "centermsg": message_center,
+      "general-message": message_general,
       "online": function(arr){arr.forEach(fromserver_join)},
       "join": fromserver_join,
       "nick": fromserver_nick,
       "left": fromserver_left,
-      "refresh": fromserver_refresh
+      "refresh": fromserver_refresh,
+      "update": fromserver_update
   }
   , commands = {
       "command_error":    [0, 1, command_error],
@@ -60,6 +61,10 @@ function new_message() {
     red.setAttribute("id", "red");
     active = 2;
   };
+  if (active == 2) {
+    unread ++;
+    document.title = "("+ unread +") Spooks";
+  };
 };
 function createLine(HTML) {
   new_message();
@@ -80,14 +85,6 @@ function nick_color(nick) { // num0, str0
     ? '<samp class="bad_nick">'+HTMLescape(nick)+'</samp>'
     : '<span style='+online_meow[num0]+'>'+HTMLescape(nick)+'</span>';
 };
-function updateInputState() {
-  if (socket.readyState == WebSocket.OPEN) {
-    input.setAttribute("placeholder", "Press enter to submit.");
-    input.removeAttribute("disabled");
-  } else {
-    requestAnimationFrame(updateInputState);
-  }
-};
 // message = any thing that is a message you get from the server
 function message_message(message) {
   new_message();
@@ -101,8 +98,14 @@ function message_message(message) {
     case "chat-message":
       message_chat(message);
       break;
+    case "error-message":
+      message_error(message);
+      break;
     case "personal-message":
       message_personal(message);
+      break;
+    case "spoken-message":
+      message_spoken(message);
       break;
     default:
       console.log(message);
@@ -117,7 +120,7 @@ function message_action(message) {
 };
 function message_anon(message) {
   li = document.createElement("li");
-  li.innerHTML = nick_color(message.name)+HTMLescape("= "+message.message);
+  li.innerHTML = nick_color(message.name)+HTMLescape(" = "+message.message);
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
@@ -131,7 +134,7 @@ function message_center(message) {
 };
 function message_chat(message) {
   li = document.createElement("li");
-  li.innerHTML = nick_color(message.nick)+HTMLescape(": "+message.message);
+  li.innerHTML = nick_color(message.nick)+HTMLescape(" : "+message.message);
   li.setAttribute("meta-hat", message.hat);
   li.setAttribute("meta-count", message.count);
   ul.appendChild(li);
@@ -144,6 +147,13 @@ function message_error(message) {
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
+function message_general(message) {
+  new_message(); //
+  li = document.createElement("li");
+  li.innerHTML = "GENERAL: "+HTMLescape(message);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
 function message_personal(message) {
   li = document.createElement("li");
   str0  = "{";
@@ -153,6 +163,13 @@ function message_personal(message) {
   str0 += "}: ";
   str0 += message.message;
   li.innerHTML = HTMLescape(str0);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
+function message_spoken(message) {
+  li = document.createElement("li");
+  li.innerHTML = nick_color(message.nick)+HTMLescape(" : "+message.message);
+  li.setAttribute("meta-voice", message.voice);
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
@@ -210,6 +227,36 @@ function fromserver_refresh() {
   li.classList.add("left");
   ul.appendChild(li);
   li.scrollIntoView(false);
+};
+function fromserver_update(obj) {
+  for (str0 in obj) {
+    switch (str0) {
+      case "access":
+      case "access_level":
+      case "background":
+      case "chat_style":
+      case "frame_src":
+      case "id":
+      case "nick":
+      case "notification":
+      case "part":
+      case "password":
+      case "role":
+      case "theme":
+      case "vHost":
+        break;
+      case "topic":
+        new_message(); //
+        li = document.createElement("li");
+        li.innerHTML = "TOPIC: "+HTMLescape(obj[str0]);
+        ul.appendChild(li);
+        li.scrollIntoView(false);
+        break;
+      default:
+        console.log("%s: %s", str0, obj[str0]);
+        break;
+    }
+  }
 };
 // command = command scpecial handlers
 function command_error() {
@@ -325,11 +372,20 @@ function socket_setup(hard) {
   socket.addEventListener("message", socket_message);
 };
 // setting up
-window.addEventListener("focus", function() { active = 0; document.title = "Spooks" });
-window.addEventListener("blur" , function() { if (ul.lastChild) active = 1; unread = 0 });
+window.addEventListener("mousemove", function() {
+  if (active != 0) {
+    active = 0;
+    document.title = "Spooks";
+  }
+});
+window.addEventListener("blur", function() {
+  active = (!!ul.lastChild) ? 1 : 2;
+  unread = 0;
+});
 form.addEventListener("submit", function(event) { // num0, arr0, arr1, str0, str1, obj0; commands
   event.preventDefault();
-  str0 = input.value;
+  if (socket.readyState != socket.OPEN) return;
+  str0 = unescape(encodeURIComponent(input.value)); // I have no clue why this (still) is needed ...
   if (str0.charAt(0) == "/" && /^\/\w\w+/.test(str0)) {
     obj0 = {};
     str1 = str0.match(/^\/\w\w+/)[0];
@@ -361,5 +417,12 @@ form.addEventListener("submit", function(event) { // num0, arr0, arr1, str0, str
   };
   input.value = "";
 });
-updateInputState();
+(function updateInputState() {
+  if (socket.readyState == WebSocket.OPEN) {
+    input.setAttribute("placeholder", "Press enter to submit.");
+    input.removeAttribute("disabled");
+  } else {
+    requestAnimationFrame(updateInputState);
+  }
+}());
 socket_setup(false);
