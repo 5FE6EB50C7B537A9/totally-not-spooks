@@ -1,4 +1,5 @@
 var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
+  , location_search = location.search, location_hash = location.hash
   , channel = "/this.spooks.me/", channel_l = channel.length
   , session = "", lastTimeout = 0, active = 0, unread = 0, flair = ""
   , online_meow = [], online_code = [], online_nick = [], online_l = 0
@@ -13,15 +14,14 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
   // settings, sortof
   , fromserver = {
       "###": function(){console.log(arr0)},
-      "message": newMessage,
-      "error-message": newMessage,
-      "centermsg": fromserver_centermsg,
+      "message": message_message,
+      "error-message": message_error,
+      "centermsg": message_center,
       "online": function(arr){arr.forEach(fromserver_join)},
       "join": fromserver_join,
       "nick": fromserver_nick,
       "left": fromserver_left,
-      "refresh": function(obj){createLine("You might want to refresh ...")},
-      "updateMousePosition": function(obj){/*socket.send("42"+JSON.stringify(["updateMousePosition",obj.position]))*/}
+      "refresh": fromserver_refresh
   }
   , commands = {
       "command_error":    [0, 1, command_error],
@@ -71,13 +71,29 @@ function nickColor(nick) { // num0, str0
   else str0 = online_meow[num0];
   return '<span style='+str0+'>'+HTMLescape(nick)+'</span>';
 };
-function fromserver_centermsg(obj) {
+function updateInputState() {
+  if (socket.readyState == WebSocket.OPEN) {
+    input.setAttribute("placeholder", "Press enter to submit.");
+    input.removeAttribute("disabled");
+  } else {
+    requestAnimationFrame(updateInputState);
+  }
+};
+// message = any thing that is a message you get from the server
+function message_message(obj) {
+  newMessage(obj);
+};
+function message_error(obj) {
+  createLine("ERROR: "+HTMLescape(message.message, 1));
+};
+function message_center(obj) {
   li = document.createElement("li");
   li.innerHTML = HTMLescape(obj.msg);
   li.classList.add("centermsg");
   ul.appendChild(li);
   li.scrollIntoView(false);
-}
+};
+// fromserver = not-message things the server send
 function fromserver_join(obj) { // num0, num1, num2, str0
   str0 = 'background:#';
   num0 = 0; num1 = 0; num2 = obj.id.length;
@@ -127,6 +143,13 @@ function fromserver_left(obj) { // num0
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
+function fromserver_refresh() {
+  li = document.createElement("li");
+  li.innerHTML = HTMLescape("You might want to refresh ...");
+  li.classList.add("left");
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
 function newMessage(message) {
   switch (message.type||"action-message") {
     case "action-message":
@@ -165,8 +188,7 @@ function newMessage(message) {
     document.title = unread.toString(10)+" unread messages";
   };
 };
-
-// commands
+// command = command scpecial handlers
 function command_error() {
   createLine("command_error: unknown command");
 };
@@ -185,81 +207,103 @@ function command_help(command) {
     createLine("command_help: not yet ("+command+")");
   }
 };
-
-function updateInputState() {
-  if (socket.readyState == WebSocket.OPEN) {
-    input.setAttribute("placeholder", "Press enter to submit.");
-    input.removeAttribute("disabled");
-  } else {
-    requestAnimationFrame(updateInputState);
-  }
-}
-
-// socket n stuff
-window.addEventListener("focus", function() { active = 0; document.title = "Spooks" });
-window.addEventListener("blur" , function() { if (ul.lastChild) active = 1; unread = 0 });
-socket.addEventListener("close"  , function(e) { console.log("close %O", e) });
-socket.addEventListener("error"  , function(e) { console.log("error %O", e) });
-socket.addEventListener("open"   , function(e) { console.log("open  %O", e) });
-socket.addEventListener("message", function(event) { // arr0, str0, str1; session, lastTimeout
-  str0 = event.data;
-  switch (str0.match(/^\d\d?/)[0]) {
+// socket = event handlers for the websocket
+function socket_close(event) {
+  console.log("close %O", event);
+  socket_setup(true);
+};
+function socket_error(event) {
+  console.log("error %O", event)
+};
+function socket_open(event) {
+  console.log("open  %O", event)
+};
+function socket_message(event) {
+  switch (event.data.match(/^\d\d?/)[0]) {
     case "0":
-      session = str0.match(/"sid":"([\w-]+)"/)[1];
-      socket.send("40"+ channel);
-      str0 = location.search;
-      if (/[?&]flair=[^&]/.test(str0)) {
-        flair = decodeURIComponent(str0.match(/[?&]flair=(.*?)(&|$)/)[1]);
-      } else {
-        flair = session; // why not
-      };
+      socket_message_0(event.data);
       // fallthrough
     case "3":
-      lastTimeout = setTimeout(function(){
-        clearTimeout(lastTimeout);
-        socket.send("2");
-      }, 25000); // hardcoding the setting
+      socket_message_3();
       break;
     case "40":
-      if (channel_l == 0 || str0.slice(2,2+channel_l) == channel) {
-        if (channel_l != 0) { channel += ","; channel_l++ };
-        if (location.hash == "#silent") return; // because you can, obviously
-        str0 = location.search;
-        if (/[?&](nick|(user)?name)=[^&]/.test(str0) && /[?&]pass(word)?=[^&]/.test(str0)) {
-          str1 = unescape(decodeURIComponent(str0.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3])); // nick / username / name
-          str0 = unescape(decodeURIComponent(str0.match(/[?&]pass(word)?=(.*?)(&|$)/)[2])); // pass / password
-          socket.send("42"+channel+JSON.stringify(["join",{"nick":str1,"password":str0}]));
-        } else {
-          socket.send("42"+channel+JSON.stringify(["join",{"nick":null,"password":null}]));
-        }
-        str0 = location.search; // no ternary here please, already hard enough to read
-        if (/[?&]part=[^&]/.test(str0)) {
-          str1 = decodeURIComponent(str0.match(/[?&]part=(.*?)(&|$)/)[1]) // part
-        } else {
-          str1 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
-          str1 = "https://dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png";
-        }
-        socket.send("42"+channel+JSON.stringify(["command",{"name":"part","params":{
-          "message": str1
-        }}]))
-      }
+      socket_message_40(event.data);
       break;
     case "41":
-      channel = channel.slice(0, -1);
-      channel_l --;
-      socket.send("40"+ channel);
+      socket_message_41();
       break;
     case "42":
-      if (channel_l == 0 || str0.slice(2, channel_l +2) == channel) {
-        arr0 = JSON.parse(str0.slice(2+channel_l));
-        (fromserver[arr0[0]]||fromserver["###"])(arr0[1]);
-      }
+      socket_message_42(event.data);
       break;
     default:
       console.log(event);
-      break;
+    break;
   };
-});
+};
+function socket_message_0(data) {
+  session = data.match(/"sid":"([\w-]+)"/)[1];
+  socket.send("40"+ channel);
+  if (/[?&]flair=[^&]/.test(location_search)) {
+    flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
+  } else {
+    flair = session; // why not
+  };
+};
+function socket_message_3() {
+  lastTimeout = setTimeout(function(){
+    clearTimeout(lastTimeout);
+    socket.send("2");
+  }, 25000); // hardcoding the setting
+};
+function socket_message_40(data) {
+  if (data.slice(2,2+channel_l) == channel) {
+    if (channel_l != 0) { channel += ","; channel_l++ };
+    if (location_hash == "#silent") return; // because you can, obviously
+    if (/[?&](nick|(user)?name)=[^&]/.test(location_search) && /[?&]pass(word)?=[^&]/.test(location_search)) {
+      str0 = unescape(decodeURIComponent(location_search.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3])); // nick / username / name
+      str1 = unescape(decodeURIComponent(location_search.match(/[?&]pass(word)?=(.*?)(&|$)/)[2])); // pass / password
+      socket.send("42"+channel+JSON.stringify(["join",{"nick":str0,"password":str1}]));
+    } else {
+      socket.send("42"+channel+JSON.stringify(["join",{"nick":null,"password":null}]));
+    }
+    if (/[?&]part=[^&]/.test(location_search)) {
+      str0 = decodeURIComponent(location_search.match(/[?&]part=(.*?)(&|$)/)[1]) // part
+    } else {
+      str0 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
+      str0 = "https://dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png";
+    }
+    socket.send("42"+channel+JSON.stringify(["command",{"name":"part","params":{
+      "message": str0
+    }}]))
+  }
+};
+function socket_message_41() {
+  socket_setup(true);
+};
+function socket_message_42(data) {
+  if (data.slice(2, channel_l +2) == channel) {
+    arr0 = JSON.parse(data.slice(2+channel_l));
+    (fromserver[arr0[0]]||fromserver["###"])(arr0[1]);
+  }
+};
+function socket_setup(hard) {
+  if (hard) {
+    if (channel.charAt(channel_l-1) == ",") {
+      channel = channel.slice(0, -1);
+      channel_l --;
+    }
+    socket.close();
+    socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket");
+  }
+  if (lastTimeout != 0) clearTimeout(lastTimeout);
+  socket.addEventListener("close", socket_close);
+  socket.addEventListener("error", socket_error);
+  socket.addEventListener("open", socket_open);
+  socket.addEventListener("message", socket_message);
+};
+// setting up
+window.addEventListener("focus", function() { active = 0; document.title = "Spooks" });
+window.addEventListener("blur" , function() { if (ul.lastChild) active = 1; unread = 0 });
 form.addEventListener("submit", function(event) { // num0, arr0, arr1, str0, str1, obj0; commands
   event.preventDefault();
   str0 = input.value;
@@ -294,5 +338,5 @@ form.addEventListener("submit", function(event) { // num0, arr0, arr1, str0, str
   };
   input.value = "";
 });
-
 updateInputState();
+socket_setup(false);
