@@ -70,13 +70,15 @@ function createLine(HTML) {
 };
 function id_nick(id) {
   num0 = online_code.indexOf(id);
-  return (num0 == -1) ? "\xAB"+id+"\xBB" : online_nick[num0];
+  return (num0 == -1)
+    ? "\xAB"+id+"\xBB"
+    : online_nick[num0];
 };
 function nick_color(nick) { // num0, str0
   num0 = online_nick.indexOf(nick);
-  if (num0 == -1) str0 = 'color:purple';
-  else str0 = online_meow[num0];
-  return '<span style='+str0+'>'+HTMLescape(nick)+'</span>';
+  return (num0 == -1)
+    ? '<samp class="bad_nick">'+HTMLescape(nick)+'</samp>'
+    : '<span style='+online_meow[num0]+'>'+HTMLescape(nick)+'</span>';
 };
 function updateInputState() {
   if (socket.readyState == WebSocket.OPEN) {
