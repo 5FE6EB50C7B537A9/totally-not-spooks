@@ -53,21 +53,28 @@ function HTMLescape(text) {
   div.appendChild(document.createTextNode(text)); // I do so love black-boxes
   return div.innerHTML;
 };
-function createLine(HTML) {
+function new_message() {
   if (active == 1) {
     red.removeAttribute("id");
     red = ul.lastChild;
     red.setAttribute("id", "red");
     active = 2;
   };
+};
+function createLine(HTML) {
+  new_message();
   li = document.createElement("li");
   li.innerHTML = HTML;
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
-function nickColor(nick) { // num0, str0
+function id_nick(id) {
+  num0 = online_code.indexOf(id);
+  return (num0 == -1) ? "\xAB"+id+"\xBB" : online_nick[num0];
+};
+function nick_color(nick) { // num0, str0
   num0 = online_nick.indexOf(nick);
-  if (num0 == -1) str0 = 'color:purple'; // something weird is going on ...
+  if (num0 == -1) str0 = 'color:purple';
   else str0 = online_meow[num0];
   return '<span style='+str0+'>'+HTMLescape(nick)+'</span>';
 };
@@ -80,21 +87,75 @@ function updateInputState() {
   }
 };
 // message = any thing that is a message you get from the server
-function message_message(obj) {
-  newMessage(obj);
+function message_message(message) {
+  new_message();
+  switch (message.type) {
+    case "action-message":
+      message_action(message);
+      break;
+    case "anon-message":
+      message_anon(message);
+      break;
+    case "chat-message":
+      message_chat(message);
+      break;
+    case "personal-message":
+      message_personal(message);
+      break;
+    default:
+      console.log(message);
+      break;
+  }
 };
-function message_error(obj) {
-  createLine("ERROR: "+HTMLescape(message.message, 1));
-};
-function message_center(obj) {
+function message_action(message) {
   li = document.createElement("li");
-  li.innerHTML = HTMLescape(obj.msg);
+  li.innerHTML = HTMLescape(message.message);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
+function message_anon(message) {
+  li = document.createElement("li");
+  li.innerHTML = nick_color(message.name)+HTMLescape("= "+message.message);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
+function message_center(message) {
+  new_message(); //
+  li = document.createElement("li");
+  li.innerHTML = HTMLescape(message.msg);
   li.classList.add("centermsg");
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
+function message_chat(message) {
+  li = document.createElement("li");
+  li.innerHTML = nick_color(message.nick)+HTMLescape(": "+message.message);
+  li.setAttribute("meta-hat", message.hat);
+  li.setAttribute("meta-count", message.count);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
+function message_error(message) {
+  new_message(); //
+  li = document.createElement("li");
+  li.innerHTML = "ERROR: "+HTMLescape(message.message);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
+function message_personal(message) {
+  li = document.createElement("li");
+  str0  = "{";
+  str0 += id_nick(message.from);
+  str0 += " ==> ";
+  str0 += id_nick(message.to);
+  str0 += "}: ";
+  str0 += message.message;
+  li.innerHTML = HTMLescape(str0);
+  ul.appendChild(li);
+  li.scrollIntoView(false);
+};
 // fromserver = not-message things the server send
-function fromserver_join(obj) { // num0, num1, num2, str0
+function fromserver_join(obj) {
   str0 = 'background:#';
   num0 = 0; num1 = 0; num2 = obj.id.length;
   while (num1 != num2) num0 = (num0 << 5) - num0 + obj.id.charCodeAt(num1++);
@@ -114,8 +175,7 @@ function fromserver_join(obj) { // num0, num1, num2, str0
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
-function fromserver_nick(obj) { // num0, str0
-  console.log("nick", obj);
+function fromserver_nick(obj) {
   num0 = online_code.indexOf(obj.id);
   if (num0 == -1) return "what the what";
   str0 = online_nick[num0];
@@ -127,8 +187,7 @@ function fromserver_nick(obj) { // num0, str0
   ul.appendChild(li);
   li.scrollIntoView(false);
 };
-function fromserver_left(obj) { // num0
-  console.log("left", obj);
+function fromserver_left(obj) {
   num0 = online_code.indexOf(obj.id);
   if (num0 == -1) return "ERROR";
   
@@ -149,44 +208,6 @@ function fromserver_refresh() {
   li.classList.add("left");
   ul.appendChild(li);
   li.scrollIntoView(false);
-};
-function newMessage(message) {
-  switch (message.type||"action-message") {
-    case "action-message":
-      createLine(HTMLescape(message.message))
-      break;
-    case "chat-message":
-      createLine(nickColor(message.nick)+" : "+HTMLescape(message.message, 1));
-      li.setAttribute("meta-hat", message.hat);
-      li.setAttribute("meta-count", message.count);
-      if (message.count == 999) location.reload();
-      break;
-    case "error-message":
-      createLine("ERROR: "+HTMLescape(message.message, 1))
-      break;
-    case "anon-message": // actually not anonymous, at all
-      createLine(nickColor(message.name)+" : "+HTMLescape(message.message, 0))
-      break;
-    case "spoken-message":
-      createLine(nickColor(message.nick)+" : "+HTMLescape(message.message, 0))
-      break;
-    case "personal-message":
-      if (message.from == session) { // sent back from the server
-        num0 = online_code.indexOf(message.to);
-        if (num0 == -1) break;
-        createLine(HTMLescape(online_nick[num0])+'&lt;=='+HTMLescape(message.message, 0))
-      } else { // you got mail
-        createLine(HTMLescape(message.nick)+'==&gt;'+HTMLescape(message.message, 0))
-      }
-      break;
-    default:
-      console.log(message);
-      break;
-  };
-  if (active == 2) {
-    unread ++;
-    document.title = unread.toString(10)+" unread messages";
-  };
 };
 // command = command scpecial handlers
 function command_error() {
@@ -210,7 +231,8 @@ function command_help(command) {
 // socket = event handlers for the websocket
 function socket_close(event) {
   console.log("close %O", event);
-  socket_setup(true);
+  if (event.code != "1000")
+    socket_setup(true);
 };
 function socket_error(event) {
   console.log("error %O", event)
@@ -270,7 +292,6 @@ function socket_message_40(data) {
       str0 = decodeURIComponent(location_search.match(/[?&]part=(.*?)(&|$)/)[1]) // part
     } else {
       str0 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
-      str0 = "https://dl.dropboxusercontent.com/s/v8tu27dgv9tae7u/spooks.png";
     }
     socket.send("42"+channel+JSON.stringify(["command",{"name":"part","params":{
       "message": str0
