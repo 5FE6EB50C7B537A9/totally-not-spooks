@@ -358,12 +358,12 @@ form.addEventListener("submit", function(event) {
     num0 = arr0[0];
     switch(num0) {
       case 1:
-        arr1 = str0.match(/^\/.+ (.*)$/);
+        arr1 = str0.match(/^\/\w+ (.*)$/);
         obj0[arr0[2]] = arr1[1];
         break;
       case 2:
-        arr1 = str0.match(/^\/.+ (\S*?)\s(.*)$/); // later I guess
-        obj0[arr0[2]] = arr1[1];
+        arr1 = str0.match(/^\/\w+ ((?:\\ |\\\\|[^\\ ])+) (.*)$/); // meh, this will do
+        obj0[arr0[2]] = arr1[1].replace(/\\([\\ ])/g, "$1");
         obj0[arr0[3]] = arr1[2];
         break;
     }
