@@ -3,6 +3,7 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
   , channel = "/this.spooks.me/", channel_l = channel.length
   , session = "", lastTimeout = 0, active = 0, unread = 0, flair = ""
   , online_meow = [], online_code = [], online_nick = [], online_l = 0
+  , can_log_frames = /chrome/i.test(navigator.userAgent), update = {}
   
   , form = document.body.lastElementChild
   , input = form.firstElementChild
@@ -27,16 +28,16 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
     , "update":fromserver_update
   }
   , commands = {
-        "###"              :[0, 1, command_error]
-      , "/clear"           :[0, 1, command_clear]
-      , "/kill"            :[0, 1, function() { socket.close(); }]
-      , "/list"            :[0, 1, command_list]
+        "###"              :[0, 2, command_error]
+      , "/clear"           :[0, 2, command_clear]
+      , "/kill"            :[0, 2, function() { socket.close(); }]
+      , "/list"            :[0, 2, command_list]
       , "/unregister"      :[0, 0]
       , "/whoami"          :[0, 0]
       , "/anon"            :[1, 0, "message"]
       , "/elbot"           :[1, 0, "message"]
-      , "/echo"            :[1, 1, command_echo, "text"]
-      , "/help"            :[1, 1, command_help, "command"]
+      , "/echo"            :[1, 3, "text", command_echo]
+      , "/help"            :[1, 3, "command", command_help]
       , "/mask"            :[1, 0, "vHost"]
       , "/me"              :[1, 0, "message"]
       , "/msg"             :[1, 0, "message"]
@@ -68,7 +69,6 @@ function new_message() {
   }
 }
 function createLine(HTML) {
-  new_message();
   li = document.createElement("li");
   li.innerHTML = HTML;
   ul.appendChild(li);
@@ -76,9 +76,9 @@ function createLine(HTML) {
 }
 function id_nick(id) {
   num0 = online_code.indexOf(id);
-  return (num0 == -1)
+  return HTMLescape((num0 == -1)
     ? ("\xAB" + id + "\xBB")
-    : (online_nick[num0]);
+    : (online_nick[num0]));
 }
 function nick_color(nick) {
   num0 = online_nick.indexOf(nick);
@@ -117,61 +117,46 @@ function message_message(message) {
   }
 }
 function message_action(message) {
-  li = document.createElement("li");
-  li.innerHTML = HTMLescape(message.message);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(HTMLescape(message.message));
 }
 function message_anon(message) {
-  li = document.createElement("li");
-  li.innerHTML = nick_color(message.name) + HTMLescape(" = " + message.message);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(nick_color(message.name) + HTMLescape(" = " + message.message));
 }
-function message_center(message) {
+function message_center(message) { // server inconsistencies
   new_message();
   li = document.createElement("li");
   li.innerHTML = HTMLescape(message.msg);
-  li.classList.add("centermsg");
+  li.classList.add("centermsg"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
 function message_chat(message) {
   li = document.createElement("li");
   li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
-  li.setAttribute("meta-hat", message.hat);
+  li.setAttribute("meta-hat", message.hat); // can't use createLine
   li.setAttribute("meta-count", message.count);
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
 function message_error(message) {
-  li = document.createElement("li");
-  li.innerHTML = 'ERROR: ' + HTMLescape(message.message);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine('ERROR: ' + HTMLescape(message.message));
 }
 function message_general(message) {
-  li = document.createElement("li");
-  li.innerHTML = 'GENERAL: ' + HTMLescape(message.message);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine('GENERAL: ' + HTMLescape(message.message));
 }
 function message_personal(message) {
-  li = document.createElement("li");
-  str0 = "{";
+  str0  = "{";
   str0 += id_nick(message.from);
   str0 += " ==> ";
   str0 += id_nick(message.to);
   str0 += "}: ";
   str0 += message.message;
-  li.innerHTML = HTMLescape(str0);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(HTMLescape(str0));
 }
 function message_spoken(message) {
   li = document.createElement("li");
   li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
-  li.setAttribute("meta-voice", message.voice);
+  li.setAttribute("meta-voice", message.voice); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
@@ -179,25 +164,22 @@ function message_spoken(message) {
 function fromserver_join(obj) {
   str0 = 'background:#';
   num0 = 0;
-  num1 = 0;
-  num2 = obj.id.length;
-  while (num1 != num2) {
+  for (num1 = 0, num2 = obj.id.length; num1 != num2; num1 ++) {
     num0 = (num0 << 5) - num0 + obj.id.charCodeAt(num1++);
   }
-  num0 >>>= 8;
-  num1 = num0 & 255;
-  str0 = str0 + (num0 + 16777216).toString(16).slice(1);
-  num0 >>>= 8;
-  num2 = num0 & 255;
-  num0 >>>= 8;
-  str0 = str0 + ';color:' + (Math.max(num1, num2, num0) + Math.min(num1, num2, num0) > 256 ? 'black' : 'white');
+  num0 >>>= 8; num1 = num0 & 255; str0 = str0 + (num0 + 0x1000000).toString(16).slice(1);
+  num0 >>>= 8; num2 = num0 & 255;
+  num0 >>>= 8; num3 = num0 & 255;
+  str0 = str0 + ';color:' + (Math.max(num1, num2, num3) + Math.min(num1, num2, num3) > 256 ? 'black' : 'white');
+  
   online_nick.push(obj.nick);
   online_code.push(obj.id);
   online_meow.push(str0);
   online_l++;
+  
   li = document.createElement("li");
   li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' join';
-  li.classList.add("join");
+  li.classList.add("join"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
@@ -208,10 +190,12 @@ function fromserver_nick(obj) {
     return message_action({"message":"fromserver_nick"});
   }
   str0 = online_nick[num0];
+  
   online_nick[num0] = obj.nick;
+  
   li = document.createElement("li");
   li.innerHTML = '<samp>[' + obj.id + ']</samp>' + HTMLescape(str0) + ' is now known as ' + HTMLescape(obj.nick);
-  li.classList.add("nick");
+  li.classList.add("nick"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
@@ -221,28 +205,26 @@ function fromserver_left(obj) {
     debugger;
     return message_action({"message":"fromserver_left"});
   }
+  
   online_meow.splice(num0, 1);
   online_code.splice(num0, 1);
   online_nick.splice(num0, 1);
   online_l--;
+  
   li = document.createElement("li");
   li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' left';
-  li.classList.add("left");
+  li.classList.add("left"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
 function fromserver_refresh() {
-  li = document.createElement("li");
-  li.innerHTML = HTMLescape("You might want to refresh ...");
-  li.classList.add("left");
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine('You might want to refresh ...');
 }
-function fromserver_error(obj) {
+function fromserver_error(obj) { // server inconsistencies
   new_message();
   message_error({"message":obj});
 }
-function fromserver_general(obj) {
+function fromserver_general(obj) { // server inconsistencies
   new_message();
   message_general({"message":obj});
 }
@@ -262,13 +244,10 @@ function fromserver_update(obj) {
       case "role":
       case "theme":
       case "vHost":
+        update[str0] = obj[str0];
         break;
       case "topic":
-        new_message();
-        li = document.createElement("li");
-        li.innerHTML = 'TOPIC: ' + HTMLescape(obj[str0]);
-        ul.appendChild(li);
-        li.scrollIntoView(false);
+        createLine('TOPIC: ' + HTMLescape(obj[str0]));
         break;
       default:
         console.log("%s: %s", str0, obj[str0]);
@@ -285,11 +264,11 @@ function command_clear() {
   ul = div.appendChild(document.createElement("ul"));
 }
 function command_echo(data) {
-  message_action({"message":data.text});
+  createLine(HTMLescape(data.text));
 }
 function command_list() {
   for (num0 = 0;num0 != online_l;num0++) {
-    createLine('<samp>' + HTMLescape(online_code[num0]) + '</samp>' + HTMLescape(online_nick[num0]));
+    createLine('<samp>' + HTMLescape(online_code[num0]) + '</samp> ' + HTMLescape(online_nick[num0]));
   }
 }
 function command_help(command) {
@@ -313,6 +292,9 @@ function socket_open(event) {
   console.log("open  %O", event);
 }
 function socket_message(event) {
+  if (!can_log_frames) {
+    console.log(event.data); // not chrome suck for this alone
+  }
   switch(event.data.match(/^\d\d?/)[0]) {
     case "0":
       socket_message_0(event.data);
@@ -432,22 +414,18 @@ form.addEventListener("submit", function(event) {
     switch(num0) {
       case 1:
         arr1 = str0.match(/^\/\w+.(.*)$/);
-        obj0[arr0[3]] = arr1[1];
+        obj0[arr0[2]] = arr1[1];
         break;
       case 2:
         arr1 = str0.match(/^\/.+ (.*?) (\w*)$/); // later I guess
-        obj0[arr0[3]] = arr1[1];
-        obj0[arr0[4]] = arr1[2];
+        obj0[arr0[2]] = arr1[1];
+        obj0[arr0[3]] = arr1[2];
         break;
     }
     if (arr0[1] == 0) {
       socket.send("42" + channel + JSON.stringify(["command", {"name":str1.slice(1), "params":obj0}]));
     } else {
-      if (num0 == 1) {
-        arr0[2](obj0);
-      } else {
-        arr0[2]();
-      }
+      arr0[arr0[1]](obj0);
     }
   } else { // basic message
     socket.send("42" + channel + JSON.stringify(["message", {"flair":flair, "message":str0}]));
