@@ -231,6 +231,7 @@ function fromserver_update(obj) {
 // command = scpecial commands handler
 function command_error() {
   createLine('command_error: unknown command');
+  debugger;
 }
 function command_clear() {
   div.removeChild(ul);
@@ -252,57 +253,6 @@ function command_help(command) {
   }
 }
 // socket = event handlers for the websocket (and other things)
-function socket_close(event) {
-  console.log("close %O", event);
-  if (event.code != "1000") {
-    socket_setup(true);
-  }
-}
-function socket_error(event) {
-  console.log("error %O", event);
-}
-function socket_open(event) {
-  console.log("open  %O", event);
-}
-function socket_message(event) {
-  switch(event.data.match(/^\d\d?/)[0]) {
-    case "0":
-      socket_message_0(event.data);
-      // fallthrough
-    case "3":
-      socket_message_3();
-      break;
-    case "40":
-      socket_message_40(event.data);
-      break;
-    case "41":
-      socket_message_41();
-      break;
-    case "42":
-      socket_message_42(event.data);
-      break;
-    default:
-      console.log(event);
-      break;
-  }
-}
-function socket_message_0(data) {
-  session = data.match(/"sid":"([\w-]+)"/)[1];
-  if (channel_l != 0) {
-    socket.send("40" + channel);
-  }
-  if (/[?&]flair=[^&]/.test(location_search)) {
-    flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
-  } else {
-    flair = session; // why not
-  }
-}
-function socket_message_3() {
-  lastTimeout = setTimeout(function() {
-    clearTimeout(lastTimeout);
-    socket.send("2");
-  }, 25000); // hardcoding the setting
-}
 function socket_message_40(data) {
   if (channel_l != 0) {
     if (data.slice(2, 2 + channel_l) != channel) {
@@ -328,35 +278,70 @@ function socket_message_40(data) {
   }
   socket.send("42" + channel + JSON.stringify(["command", {"name":"part", "params":{"message":str0}}]));
 }
-function socket_message_41() {
-  socket_setup(true);
-}
-function socket_message_42(data) {
-  if (channel_l != 0) {
-    if (data.slice(2, channel_l + 2) != channel) {
-      return;
-    }
-    arr0 = JSON.parse(data.slice(2 + channel_l));
-  } else {
-    arr0 = JSON.parse(data.slice(2));
+function socket_message(event) {
+  str0 = event.data;
+  switch(str0.match(/^\d\d?/)[0]) {
+    case "0":
+      session = str0.match(/"sid":"([\w-]+)"/)[1];
+      if (channel_l != 0) {
+        socket.send("40" + channel);
+      }
+      if (/[?&]flair=[^&]/.test(location_search)) {
+        flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
+      } else {
+        flair = session; // why not
+      }
+      // fallthrough
+    case "3":
+      lastTimeout = setTimeout(function() {
+        clearTimeout(lastTimeout);
+        socket.send("2");
+      }, 25000); // hardcoding the setting
+      break;
+    case "40":
+      socket_message_40(str0);
+      break;
+    case "41":
+      socket_setup();
+      break;
+    case "42":
+      if (channel_l != 0) {
+        if (str0.slice(2, channel_l + 2) != channel) {
+          return;
+        }
+        arr0 = JSON.parse(str0.slice(2 + channel_l));
+      } else {
+        arr0 = JSON.parse(str0.slice(2));
+      }
+      (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
+      break;
+    default:
+      console.log(event);
+      break;
   }
-  (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
 }
-function socket_setup(hard) {
-  if (hard) {
-    if (channel.charAt(channel_l - 1) == ",") {
-      channel = channel.slice(0, -1);
-      channel_l--;
-    }
-    socket.close();
-    socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket");
-  }
+function socket_setup() {
   if (lastTimeout != 0) {
     clearTimeout(lastTimeout);
   }
-  socket.addEventListener("close", socket_close);
-  socket.addEventListener("error", socket_error);
-  socket.addEventListener("open", socket_open);
+  if (channel.charAt(channel_l - 1) == ",") {
+    channel = channel.slice(0, -1);
+    channel_l--;
+  }
+  socket.close();
+  socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket");
+  socket.addEventListener("close", function socket_close(event) {
+    console.log("close %O", event);
+    if (event.code != "1000") {
+      socket_setup();
+    }
+  });
+  socket.addEventListener("error", function socket_error(event) {
+    console.log("error %O", event);
+  });
+  socket.addEventListener("open", function socket_open(event) {
+    console.log("open  %O", event);
+  });
   socket.addEventListener("message", socket_message);
 }
 // setting up
@@ -410,4 +395,4 @@ form.addEventListener("submit", function(event) {
     requestAnimationFrame(updateInputState);
   }
 })();
-socket_setup(false);
+socket_setup();
