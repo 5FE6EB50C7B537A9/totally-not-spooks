@@ -362,8 +362,8 @@ form.addEventListener("submit", function(event) {
         obj0[arr0[2]] = arr1[1];
         break;
       case 2:
-        arr1 = str0.match(/^\/\w+ ((?:\\ |\\\\|[^\\ ])+) (.*)$/); // meh, this will do
-        obj0[arr0[2]] = arr1[1].replace(/\\([\\ ])/g, "$1");
+        arr1 = str0.match(/^\/\w+ ((?:~.|[^~ ])+) (.*)$/); // meh, this will do
+        obj0[arr0[2]] = arr1[1].replace(/~(.)/g, "$1");
         obj0[arr0[3]] = arr1[2];
         break;
     }
