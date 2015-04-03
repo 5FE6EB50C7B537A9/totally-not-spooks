@@ -1,4 +1,4 @@
-var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
+var socket = {"close": function(){}}
   , location_search = location.search, location_hash = location.hash
   , channel = "/this.spooks.me/", channel_l = channel.length
   , session = "", lastTimeout = 0, active = 0, unread = 0, flair = ""
@@ -17,8 +17,6 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
   , fromserver = {
       "###"             :function() { debugger; }
     , "centermsg"       :function(obj) { fromserver_message({"type":"center-message","message":obj.msg}); }
-    , "error-message"   :function(obj) { fromserver_message({"type":"error-message","message":obj}); }
-    , "general-message" :function(obj) { fromserver_message({"type":"general-message","message":obj}); }
     , "join"            :fromserver_join
     , "left"            :fromserver_left
     , "message"         :fromserver_message
@@ -195,6 +193,14 @@ function fromserver_message(message) {
       li.setAttribute("meta-voice", message.voice); // can't use createLine
       ul.appendChild(li);
       li.scrollIntoView(false);
+      break;
+    case "system-message":
+      li = document.createElement("li");
+      li.innerHTML = HTMLescape(message.message);
+      li.classList.add("system"); // can't use createLine
+      ul.appendChild(li);
+      li.scrollIntoView(false);
+      createLine(HTMLescape(message.message));
       break;
     default:
       console.log(message);

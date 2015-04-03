@@ -18,6 +18,10 @@
     color: orange;
 }
 
+.system {
+    background-color: hsla(0, 0%, 50%, 0.5);
+}
+
 #red {
     border-color: red;
 }
