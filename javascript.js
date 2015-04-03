@@ -254,15 +254,12 @@ function command_help(command) {
 }
 // socket = event handlers for the websocket (and other things)
 function socket_message_40(data) {
-  if (channel_l != 0) {
-    if (data.slice(2, 2 + channel_l) != channel) {
-      return;
-    }
+  if (data.slice(2, 2 + channel_l) != channel) {
+    return;
+  }
+  if (channel.charAt(channel_l -1) == "/") {
     channel += ",";
     channel_l++;
-  }
-  if (location_hash == "#silent") {
-    return; // because you can, obviously
   }
   if (/[?&](nick|(user)?name)=[^&]/.test(location_search) && /[?&]pass(word)?=[^&]/.test(location_search)) {
     str0 = unescape(decodeURIComponent(location_search.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3])); // nick / username / name
@@ -283,9 +280,7 @@ function socket_message(event) {
   switch(str0.match(/^\d\d?/)[0]) {
     case "0":
       session = str0.match(/"sid":"([\w-]+)"/)[1];
-      if (channel_l != 0) {
-        socket.send("40" + channel);
-      }
+      socket.send("40" + channel);
       if (/[?&]flair=[^&]/.test(location_search)) {
         flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
       } else {
@@ -305,15 +300,10 @@ function socket_message(event) {
       socket_setup();
       break;
     case "42":
-      if (channel_l != 0) {
-        if (str0.slice(2, channel_l + 2) != channel) {
-          return;
-        }
+      if (str0.slice(2, channel_l + 2) == channel) {
         arr0 = JSON.parse(str0.slice(2 + channel_l));
-      } else {
-        arr0 = JSON.parse(str0.slice(2));
+        (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
       }
-      (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
       break;
     default:
       console.log(event);
@@ -324,7 +314,7 @@ function socket_setup() {
   if (lastTimeout != 0) {
     clearTimeout(lastTimeout);
   }
-  if (channel.charAt(channel_l - 1) == ",") {
+  if (channel.charAt(channel_l -1) == ",") {
     channel = channel.slice(0, -1);
     channel_l--;
   }
