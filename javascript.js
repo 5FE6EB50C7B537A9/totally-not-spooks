@@ -3,29 +3,29 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
   , channel = "/this.spooks.me/", channel_l = channel.length
   , session = "", lastTimeout = 0, active = 0, unread = 0, flair = ""
   , online_meow = [], online_code = [], online_nick = [], online_l = 0
-  , can_log_frames = /chrome/i.test(navigator.userAgent), update = {}
-  
+  , update = {}
+  // DOM elements
   , form = document.body.lastElementChild
   , input = form.firstElementChild
   , div = document.body.firstElementChild
   , ul = div.firstElementChild
   , li = document.createElement("li")
   , red = document.createElement("li")
-  
+  // sort of typed variable
   , num0 = 0, num1 = 0, num2 = 0, num3 = 0, arr0 = [], arr1 = [], str0 = "", str1 = "", obj0 = {}
   
   , fromserver = {
-      "###":function() { debugger; }
-    , "message":message_message
-    , "centermsg":message_center
-    , "online":function(arr) { arr.forEach(fromserver_join); }
-    , "join":fromserver_join
-    , "nick":fromserver_nick
-    , "left":fromserver_left
-    , "refresh":fromserver_refresh
-    , "general-message":fromserver_general
-    , "error-message":fromserver_error
-    , "update":fromserver_update
+      "###"             :function() { debugger; }
+    , "centermsg"       :function(obj) { fromserver_message({"type":"center-message","message":obj.msg}); }
+    , "error-message"   :function(obj) { fromserver_message({"type":"error-message","message":obj}); }
+    , "general-message" :function(obj) { fromserver_message({"type":"general-message","message":obj}); }
+    , "join"            :fromserver_join
+    , "left"            :fromserver_left
+    , "message"         :fromserver_message
+    , "nick"            :fromserver_nick
+    , "online"          :function(arr) { arr.forEach(fromserver_join); }
+    , "refresh"         :function() { createLine('You might want to refresh ...'); }
+    , "update"          :fromserver_update
   }
   , commands = {
         "###"              :[0, 2, command_error]
@@ -51,6 +51,7 @@ var socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket")
       , "/pm"              :[2, 0, "nick", "message"]
       , "/register"        :[2, 0, "email_address", "initial_password"]
   };
+// utility functions
 function HTMLescape(text) {
   var div = document.createElement("div");
   div.appendChild(document.createTextNode(text)); // I do so love black-boxes
@@ -86,81 +87,7 @@ function nick_color(nick) {
     ? ('<samp class="bad_nick">' + HTMLescape(nick) + '</samp>')
     : ('<span style=' + online_meow[num0] + '>' + HTMLescape(nick) + '</span>');
 }
-// message = any thing that is a message you get from the server
-function message_message(message) {
-  new_message();
-  switch(message.type) {
-    case "action-message":
-      message_action(message);
-      break;
-    case "anon-message":
-      message_anon(message);
-      break;
-    case "chat-message":
-      message_chat(message);
-      break;
-    case "error-message":
-      message_error(message);
-      break;
-    case "general-message":
-      message_general(message);
-      break;
-    case "personal-message":
-      message_personal(message);
-      break;
-    case "spoken-message":
-      message_spoken(message);
-      break;
-    default:
-      console.log(message);
-      break;
-  }
-}
-function message_action(message) {
-  createLine(HTMLescape(message.message));
-}
-function message_anon(message) {
-  createLine(nick_color(message.name) + HTMLescape(" = " + message.message));
-}
-function message_center(message) { // server inconsistencies
-  new_message();
-  li = document.createElement("li");
-  li.innerHTML = HTMLescape(message.msg);
-  li.classList.add("centermsg"); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
-}
-function message_chat(message) {
-  li = document.createElement("li");
-  li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
-  li.setAttribute("meta-hat", message.hat); // can't use createLine
-  li.setAttribute("meta-count", message.count);
-  ul.appendChild(li);
-  li.scrollIntoView(false);
-}
-function message_error(message) {
-  createLine('ERROR: ' + HTMLescape(message.message));
-}
-function message_general(message) {
-  createLine('GENERAL: ' + HTMLescape(message.message));
-}
-function message_personal(message) {
-  str0  = "{";
-  str0 += id_nick(message.from);
-  str0 += " ==> ";
-  str0 += id_nick(message.to);
-  str0 += "}: ";
-  str0 += message.message;
-  createLine(HTMLescape(str0));
-}
-function message_spoken(message) {
-  li = document.createElement("li");
-  li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
-  li.setAttribute("meta-voice", message.voice); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
-}
-// fromserver = not-message things the server send
+// fromserver = things the server send
 function fromserver_join(obj) {
   str0 = 'background:#';
   num0 = 0;
@@ -183,27 +110,11 @@ function fromserver_join(obj) {
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
-function fromserver_nick(obj) {
-  num0 = online_code.indexOf(obj.id);
-  if (num0 == -1) {
-    debugger;
-    return message_action({"message":"fromserver_nick"});
-  }
-  str0 = online_nick[num0];
-  
-  online_nick[num0] = obj.nick;
-  
-  li = document.createElement("li");
-  li.innerHTML = '<samp>[' + obj.id + ']</samp>' + HTMLescape(str0) + ' is now known as ' + HTMLescape(obj.nick);
-  li.classList.add("nick"); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
-}
 function fromserver_left(obj) {
   num0 = online_code.indexOf(obj.id);
   if (num0 == -1) {
     debugger;
-    return message_action({"message":"fromserver_left"});
+    return new_message('fromserver_left');
   }
   
   online_meow.splice(num0, 1);
@@ -217,16 +128,78 @@ function fromserver_left(obj) {
   ul.appendChild(li);
   li.scrollIntoView(false);
 }
-function fromserver_refresh() {
-  createLine('You might want to refresh ...');
+function fromserver_nick(obj) {
+  num0 = online_code.indexOf(obj.id);
+  if (num0 == -1) {
+    debugger;
+    return new_message('fromserver_nick');
+  }
+  str0 = online_nick[num0];
+  
+  online_nick[num0] = obj.nick;
+  
+  li = document.createElement("li");
+  li.innerHTML = '<samp>[' + obj.id + ']</samp>' + HTMLescape(str0) + ' is now known as ' + HTMLescape(obj.nick);
+  li.classList.add("nick"); // can't use createLine
+  ul.appendChild(li);
+  li.scrollIntoView(false);
 }
-function fromserver_error(obj) { // server inconsistencies
+function fromserver_message(message) {
   new_message();
-  message_error({"message":obj});
-}
-function fromserver_general(obj) { // server inconsistencies
-  new_message();
-  message_general({"message":obj});
+  switch(message.type) {
+    case "action-message":
+      createLine(HTMLescape(message.message));
+      break;
+    case "anon-message":
+      createLine(nick_color(message.name) + HTMLescape(" = " + message.message));
+      break;
+    case "center-message": // fake type, but whatever
+      li = document.createElement("li");
+      li.innerHTML = HTMLescape(message.message);
+      li.classList.add("centermsg"); // can't use createLine
+      ul.appendChild(li);
+      li.scrollIntoView(false);
+      break;
+    case "chat-message":
+      li = document.createElement("li");
+      li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
+      li.setAttribute("meta-hat", message.hat); // can't use createLine
+      li.setAttribute("meta-count", message.count); // ditto
+      ul.appendChild(li);
+      li.scrollIntoView(false);
+      break;
+    case "elbot-message":
+      createLine(nick_color(message.nick) + HTMLescape(" > " + message.message));
+      break;
+    case "elbot-response":
+      createLine(nick_color(message.nick) + HTMLescape(" < " + message.message));
+      break;
+    case "error-message":
+      createLine('ERROR: ' + HTMLescape(message.message));
+      break;
+    case "general-message":
+      createLine('GENERAL: ' + HTMLescape(message.message));
+      break;
+    case "personal-message":
+      str0  = "{";
+      str0 += id_nick(message.from);
+      str0 += " ==> ";
+      str0 += id_nick(message.to);
+      str0 += "}: ";
+      str0 += message.message;
+      createLine(HTMLescape(str0));
+      break;
+    case "spoken-message":
+      li = document.createElement("li");
+      li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
+      li.setAttribute("meta-voice", message.voice); // can't use createLine
+      ul.appendChild(li);
+      li.scrollIntoView(false);
+      break;
+    default:
+      console.log(message);
+      break;
+  }
 }
 function fromserver_update(obj) {
   for (str0 in obj) {
@@ -255,7 +228,7 @@ function fromserver_update(obj) {
     }
   }
 }
-// command = command scpecial handlers
+// command = scpecial commands handler
 function command_error() {
   createLine('command_error: unknown command');
 }
@@ -278,7 +251,7 @@ function command_help(command) {
     createLine('command_help: not yet (' + HTMLescape(command) + ')');
   }
 }
-// socket = event handlers for the websocket
+// socket = event handlers for the websocket (and other things)
 function socket_close(event) {
   console.log("close %O", event);
   if (event.code != "1000") {
@@ -292,9 +265,6 @@ function socket_open(event) {
   console.log("open  %O", event);
 }
 function socket_message(event) {
-  if (!can_log_frames) {
-    console.log(event.data); // not chrome suck for this alone
-  }
   switch(event.data.match(/^\d\d?/)[0]) {
     case "0":
       socket_message_0(event.data);
@@ -405,7 +375,7 @@ form.addEventListener("submit", function(event) {
   if (socket.readyState != socket.OPEN) {
     return;
   }
-  str0 = unescape(encodeURIComponent(input.value)); // I have no clue why this (still) is needed ...
+  str0 = unescape(encodeURIComponent(input.value)); // I have no clue why this is (still) needed ...
   if (str0.charAt(0) == "/" && /^\/\w\w+/.test(str0)) {
     obj0 = {};
     str1 = str0.match(/^\/\w\w+/)[0];
@@ -413,11 +383,11 @@ form.addEventListener("submit", function(event) {
     num0 = arr0[0];
     switch(num0) {
       case 1:
-        arr1 = str0.match(/^\/\w+.(.*)$/);
+        arr1 = str0.match(/^\/.+ (.*)$/);
         obj0[arr0[2]] = arr1[1];
         break;
       case 2:
-        arr1 = str0.match(/^\/.+ (.*?) (\w*)$/); // later I guess
+        arr1 = str0.match(/^\/.+ (\S*?)\s(.*)$/); // later I guess
         obj0[arr0[2]] = arr1[1];
         obj0[arr0[3]] = arr1[2];
         break;
