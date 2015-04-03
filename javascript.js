@@ -200,7 +200,6 @@ function fromserver_message(message) {
       li.classList.add("system"); // can't use createLine
       ul.appendChild(li);
       li.scrollIntoView(false);
-      createLine(HTMLescape(message.message));
       break;
     default:
       console.log(message);
