@@ -285,6 +285,7 @@ function socket_message(event) {
   switch(str0.match(/^\d\d?/)[0]) {
     case "0":
       session = str0.match(/"sid":"([\w-]+)"/)[1];
+      socket.send("42['join',{'nick':null,'password':null}]");
       socket.send("40" + channel);
       if (/[?&]flair=[^&]/.test(location_search)) {
         flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
