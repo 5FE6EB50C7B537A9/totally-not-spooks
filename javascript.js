@@ -1,9 +1,8 @@
 var socket = {"close": function(){}}
-  , location_search = location.search, location_hash = location.hash
-  , channel = "/this.spooks.me/", channel_l = channel.length
-  , session = "", lastTimeout = 0, active = 0, unread = 0, flair = ""
+  , location_search = location.search, channel = location.hash.substring(1)
+  , channel_ = channel + ",", update = {}, flair = ""
+  , sid = "sid", pingInterval, pingTimeout = 0, active = 0, unread = 0
   , online_meow = [], online_code = [], online_nick = [], online_l = 0
-  , update = {}
   // DOM elements
   , form = document.body.lastElementChild
   , input = form.firstElementChild
@@ -159,6 +158,9 @@ function fromserver_message(message) {
       li.scrollIntoView(false);
       break;
     case "chat-message":
+      if (message.message.length > 488) {
+        message.message = "Too long...";
+      }
       li = document.createElement("li");
       li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
       li.setAttribute("meta-hat", message.hat); // can't use createLine
@@ -258,71 +260,92 @@ function command_help(command) {
   }
 }
 // socket = event handlers for the websocket (and other things)
-function socket_message_40(data) {
-  if (data.slice(2, 2 + channel_l) != channel) {
-    return;
-  }
-  if (channel.charAt(channel_l -1) == "/") {
-    channel += ",";
-    channel_l++;
-  }
-  if (/[?&](nick|(user)?name)=[^&]/.test(location_search) && /[?&]pass(word)?=[^&]/.test(location_search)) {
-    str0 = unescape(decodeURIComponent(location_search.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3])); // nick / username / name
-    str1 = unescape(decodeURIComponent(location_search.match(/[?&]pass(word)?=(.*?)(&|$)/)[2])); // pass / password
-    socket.send("42" + channel + JSON.stringify(["join", {"nick":str0, "password":str1}]));
-  } else {
-    socket.send("42" + channel + JSON.stringify(["join", {"nick":null, "password":null}]));
-  }
-  if (/[?&]part=[^&]/.test(location_search)) {
-    str0 = decodeURIComponent(location_search.match(/[?&]part=(.*?)(&|$)/)[1]); // part
-  } else {
-    str0 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
-  }
-  socket.send("42" + channel + JSON.stringify(["command", {"name":"part", "params":{"message":str0}}]));
-}
 function socket_message(event) {
   str0 = event.data;
-  switch(str0.match(/^\d\d?/)[0]) {
-    case "0":
-      session = str0.match(/"sid":"([\w-]+)"/)[1];
-      socket.send("42['join',{'nick':null,'password':null}]");
-      socket.send("40" + channel);
+  switch (str0.charAt(0)) {
+    case "0": // open
+      obj0 = JSON.parse(str0.substring(1));
+      pingInterval = obj0.pingInterval;
+      sid = obj0.sid;
       if (/[?&]flair=[^&]/.test(location_search)) {
         flair = decodeURIComponent(location_search.match(/[?&]flair=(.*?)(&|$)/)[1]);
       } else {
-        flair = session; // why not
+        flair = sid;
+      }
+      if (channel != "/") {
+        socket.send("40" + channel);
       }
       // fallthrough
-    case "3":
-      lastTimeout = setTimeout(function() {
-        clearTimeout(lastTimeout);
+    case "3": // pong
+      pingTimeout = setTimeout(function() {
+        clearTimeout(pingTimeout);
         socket.send("2");
-      }, 25000); // hardcoding the setting
+      }, pingInterval);
       break;
-    case "40":
-      socket_message_40(str0);
-      break;
-    case "41":
-      socket_setup();
-      break;
-    case "42":
-      if (str0.slice(2, channel_l + 2) == channel) {
-        arr0 = JSON.parse(str0.slice(2 + channel_l));
-        (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
+    case "4": // message
+      // get channel and additional data
+      if (str0.charAt(2) == "/") {
+        num0 = str0.indexOf(",");
+        if (num0 == -1) {
+          str1 = str0.substring(2);
+          num0 = str0.length;
+        } else {
+          str1 = str0.substring(2, num0);
+          num0 ++;
+        }
+      } else {
+        str1 = "/";
+        num0 = 2;
       }
-      break;
-    default:
-      console.log(event);
+      // if it is not the chan we want we just dismiss it
+      if (str1 != channel) {
+        break;
+      }
+      switch (str0.charAt(1)) {
+        case "0": // connect
+          if (/[?&](nick|(user)?name)=[^&]/.test(location_search)) { // nick / username / name
+            str1 = unescape(decodeURIComponent(location_search.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3]));
+            if (/[?&]pass(word)?=[^&]/.test(location_search)) { // pass / password
+              str0 = str0 = unescape(decodeURIComponent(location_search.match(/[?&]pass(word)?=(.*?)(&|$)/)[2]));
+            } else {
+              str0 = "";
+            }
+          } else {
+            str1 = sid;
+            str0 = "";
+          }
+          socket.send("42" + channel_ + JSON.stringify(["join", {"nick":str1, "password":str0}]));
+          if (/[?&]part=[^&]/.test(location_search)) { // part
+            str0 = decodeURIComponent(location_search.match(/[?&]part=(.*?)(&|$)/)[1]);
+          } else {
+            str0 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
+          }
+          socket.send("42" + channel_ + JSON.stringify(["command", {"name":"part", "params":{"message":str0}}]));
+          if (str1 == sid) {
+            // this is actaully incalid (so you get a new default nick) but it does not trigger the error message
+            socket.send("42" + channel_ + JSON.stringify(["command", {"name":"nick", "params":{"nick":" "}}]));
+          }
+          break;
+        case "1": // disconnect
+          // socket_setup();
+          break;
+        case "2": // event
+          arr0 = JSON.parse(str0.substring(num0));
+          (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
+          break;
+        case "4": // error
+          createLine('44: ' + HTMLescape(JSON.parse(str0.substring(num0))));
+          channel = "/";
+          channel_ = "";
+          socket_setup();
+          break;
+      }
       break;
   }
 }
 function socket_setup() {
-  if (lastTimeout != 0) {
-    clearTimeout(lastTimeout);
-  }
-  if (channel.charAt(channel_l -1) == ",") {
-    channel = channel.slice(0, -1);
-    channel_l--;
+  if (pingTimeout != 0) {
+    clearTimeout(pingTimeout);
   }
   socket.close();
   socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket");
@@ -374,12 +397,12 @@ form.addEventListener("submit", function(event) {
         break;
     }
     if (arr0[1] == 0) {
-      socket.send("42" + channel + JSON.stringify(["command", {"name":str1.slice(1), "params":obj0}]));
+      socket.send("42" + channel_ + JSON.stringify(["command", {"name":str1.slice(1), "params":obj0}]));
     } else {
       arr0[arr0[1]](obj0);
     }
   } else { // basic message
-    socket.send("42" + channel + JSON.stringify(["message", {"flair":flair, "message":str0}]));
+    socket.send("42" + channel_ + JSON.stringify(["message", {"flair":flair, "message":str0}]));
   }
   input.value = "";
 });
