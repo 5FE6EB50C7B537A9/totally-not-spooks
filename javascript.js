@@ -1,6 +1,6 @@
 var socket = {"close": function(){}}
-  , location_search = location.search, channel = location.hash.substring(1)
-  , channel_ = channel + ",", update = {}, flair = ""
+  , location_search = location.search, channel = location.hash.substring(1) || "/"
+  , channel_ = channel + ",", update = {}, flair = "", suplement = ""
   , sid = "sid", pingInterval, pingTimeout = 0, active = 0, unread = 0
   , online_meow = [], online_code = [], online_nick = [], online_l = 0
   // DOM elements
@@ -20,7 +20,7 @@ var socket = {"close": function(){}}
     , "left"            :fromserver_left
     , "message"         :fromserver_message
     , "nick"            :fromserver_nick
-    , "online"          :function(arr) { arr.forEach(fromserver_join); }
+    , "online"          :fromserver_online
     , "refresh"         :function() { createLine('You might want to refresh ...'); }
     , "update"          :fromserver_update
   }
@@ -120,7 +120,12 @@ function fromserver_left(obj) {
   online_l--;
   
   li = document.createElement("li");
-  li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' left';
+  if (!!obj.part) {
+    str0 = ' ' + HTMLescape(obj.part);
+  } else {
+    str0 = ''
+  }
+  li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' left' + str0;
   li.classList.add("left"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
@@ -140,6 +145,10 @@ function fromserver_nick(obj) {
   li.classList.add("nick"); // can't use createLine
   ul.appendChild(li);
   li.scrollIntoView(false);
+}
+function fromserver_online(obj) {
+  obj.forEach(fromserver_join);
+  socket.send(suplement);
 }
 function fromserver_message(message) {
   new_message();
@@ -315,15 +324,12 @@ function socket_message(event) {
             str0 = "";
           }
           socket.send("42" + channel_ + JSON.stringify(["join", {"nick":str1, "password":str0}]));
-          if (/[?&]part=[^&]/.test(location_search)) { // part
-            str0 = decodeURIComponent(location_search.match(/[?&]part=(.*?)(&|$)/)[1]);
-          } else {
-            str0 = "https://github.com/5FE6EB50C7B537A9/totally-not-spooks";
-          }
-          socket.send("42" + channel_ + JSON.stringify(["command", {"name":"part", "params":{"message":str0}}]));
           if (str1 == sid) {
-            // this is actaully incalid (so you get a new default nick) but it does not trigger the error message
-            socket.send("42" + channel_ + JSON.stringify(["command", {"name":"nick", "params":{"nick":" "}}]));
+            // this is actaully invalid (so you get a new default nick) but it does not trigger the error message
+            suplement = "42" + channel_ + JSON.stringify(["command", {"name":"nick", "params":{"nick":" "}}]);
+          } else {
+            suplement = "42" + channel_ + JSON.stringify(["command", {"name":"part",
+              "params":{"message":"https://github.com/5FE6EB50C7B537A9/totally-not-spooks"}}]);
           }
           break;
         case "1": // disconnect
@@ -336,7 +342,7 @@ function socket_message(event) {
         case "4": // error
           createLine('44: ' + HTMLescape(JSON.parse(str0.substring(num0))));
           channel = "/";
-          channel_ = "";
+          channel_ = ""; // note that "/," work too
           socket_setup();
           break;
       }
