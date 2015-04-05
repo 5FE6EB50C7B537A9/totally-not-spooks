@@ -25,28 +25,49 @@ var socket = {"close": function(){}}
     , "update"          :fromserver_update
   }
   , commands = {
-        "###"              :[0, 2, command_error]
-      , "/clear"           :[0, 2, command_clear]
-      , "/kill"            :[0, 2, function() { socket.close(); }]
-      , "/list"            :[0, 2, command_list]
-      , "/unregister"      :[0, 0]
-      , "/whoami"          :[0, 0]
-      , "/anon"            :[1, 0, "message"]
-      , "/elbot"           :[1, 0, "message"]
-      , "/echo"            :[1, 3, "text", command_echo]
-      , "/help"            :[1, 3, "command", command_help]
-      , "/mask"            :[1, 0, "vHost"]
-      , "/me"              :[1, 0, "message"]
-      , "/msg"             :[1, 0, "message"]
-      , "/nick"            :[1, 0, "nick"]
-      , "/part"            :[1, 0, "message"]
-      , "/speak"           :[1, 0, "message"]
-      , "/verify"          :[1, 0, "reenter_password"]
-      , "/whois"           :[1, 0, "nick"]
-      , "/change_password" :[2, 0, "old_password", "new_password"]
-      , "/login"           :[2, 0, "nick", "password"]
-      , "/pm"              :[2, 0, "nick", "message"]
-      , "/register"        :[2, 0, "email_address", "initial_password"]
+        "###"              :[0, 2, "", command_error]
+      , "/clear"           :[0, 3, "Clear chat history."
+                            , command_clear]
+      , "/kill"            :[0, 3, "Kill the connection."
+                            , function() { socket.close(); }]
+      , "/list"            :[0, 3, "Show a list of all the people connected."
+                            , command_list]
+      , "/unregister"      :[0, 0, "Unregister your nick."
+                            ]
+      , "/whoami"          :[0, 0, ""
+                            ]
+      , "/anon"            :[1, 0, "Send a message anonymously."
+                            , "message"]
+      , "/echo"            :[1, 4, "Send a message to yourself."
+                            , "text", command_echo]
+      , "/elbot"           :[1, 0, "Not usable as of now ..."
+                            , "message"]
+      , "/help"            :[1, 4, "Show help for commands."
+                            , "command", command_help]
+      , "/mask"            :[1, 0, ""
+                            , "vHost"]
+      , "/me"              :[1, 0, ""
+                            , "message"]
+      , "/msg"             :[1, 0, ""
+                            , "message"]
+      , "/nick"            :[1, 0, "Change your nick."
+                            , "nick"]
+      , "/part"            :[1, 0, ""
+                            , "message"]
+      , "/speak"           :[1, 0, ""
+                            , "message"]
+      , "/verify"          :[1, 0, ""
+                            , "reenter_password"]
+      , "/whois"           :[1, 0, ""
+                            , "nick"]
+      , "/change_password" :[2, 0, "Change your password."
+                            , "old_password", "new_password"]
+      , "/login"           :[2, 0, ""
+                            , "nick", "password"]
+      , "/pm"              :[2, 0, "Send a personnal message."
+                            , "nick", "message"]
+      , "/register"        :[2, 0, ""
+                            , "email_address", "initial_password"]
   };
 // utility functions
 function HTMLescape(text) {
@@ -246,26 +267,46 @@ function fromserver_update(obj) {
 }
 // command = scpecial commands handler
 function command_error() {
-  createLine('command_error: unknown command');
-  debugger;
+  createLine('command: unknown command, type /help for help');
 }
 function command_clear() {
   div.removeChild(ul);
   ul = div.appendChild(document.createElement("ul"));
 }
-function command_echo(data) {
-  createLine(HTMLescape(data.text));
+function command_echo(obj) {
+  createLine(HTMLescape(obj.text));
 }
 function command_list() {
   for (num0 = 0;num0 != online_l;num0++) {
-    createLine('<samp>' + HTMLescape(online_code[num0]) + '</samp> ' + HTMLescape(online_nick[num0]));
+    createLine('<samp>' + HTMLescape(online_code[num0]) + '</samp> ' + nick_color(online_nick[num0]));
   }
 }
-function command_help(command) {
-  if (typeof command == "undefinied") {
-    createLine('command_help: not yet');
-  } else {
-    createLine('command_help: not yet (' + HTMLescape(command) + ')');
+function command_help(obj) {
+  switch (obj.command.trim()) {
+    case "":
+      createLine('command: Current commands:');
+      for (str0 in commands) {
+        if (str0 == "###") continue;
+        str1  = "command: "
+        str1 += str0;
+        arr0 = commands[str0];
+        for (num0 = 3, num1 = arr0[0] +3; num0 != num1; num0 ++) {
+          str1 += ' ';
+          str1 += arr0[num0];
+        }
+        createLine(HTMLescape(str1));
+      }
+      break;
+    case "anon": case "change_password": case "clear": case "echo":
+    case "elbot": case "help": case "kill": case "list": case "login":
+    case "mask": case "me": case "msg": case "nick": case "part":
+    case "pm": case "register": case "speak": case "unregister":
+    case "verify": case "whoami": case "whois":
+      createLine('command: '+ HTMLescape(commands["/"+ obj.command][2]));
+      break;
+    default:
+      createLine('command: /'+ HTMLescape(obj.command) +' is not documented yet.');
+      break;
   }
 }
 // socket = event handlers for the websocket (and other things)
@@ -393,13 +434,13 @@ form.addEventListener("submit", function(event) {
     num0 = arr0[0];
     switch(num0) {
       case 1:
-        arr1 = str0.match(/^\/\w+ (.*)$/);
-        obj0[arr0[2]] = arr1[1];
+        arr1 = str0.match(/^\/\w+ (.+)$/) || ["", ""];
+        obj0[arr0[3]] = arr1[1];
         break;
       case 2:
-        arr1 = str0.match(/^\/\w+ ((?:~.|[^~ ])+) (.*)$/); // meh, this will do
-        obj0[arr0[2]] = arr1[1].replace(/~(.)/g, "$1");
-        obj0[arr0[3]] = arr1[2];
+        arr1 = str0.match(/^\/\w+ ((?:~.|[^~ ])+) (.+)$/) || ["", "", ""]; // meh, this will do
+        obj0[arr0[3]] = arr1[1].replace(/~(.)/g, "$1");
+        obj0[arr0[4]] = arr1[2];
         break;
     }
     if (arr0[1] == 0) {
