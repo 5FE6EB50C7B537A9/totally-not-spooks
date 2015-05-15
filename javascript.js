@@ -1,8 +1,7 @@
 var socket = {"close": function(){}}
-  , location_search = location.search, channel = location.hash.substring(1) || "/"
+  , location_search = location.search, channel = ""+location.hash.match(/\/.*/) || "/"
   , channel_ = channel + ",", update = {}, flair = "", suplement = ""
   , sid = "sid", pingInterval, pingTimeout = 0, active = 0, unread = 0
-  , online_meow = [], online_code = [], online_nick = [], online_l = 0
   // DOM elements
   , form = document.body.lastElementChild
   , input = form.firstElementChild
@@ -12,9 +11,9 @@ var socket = {"close": function(){}}
   , red = document.createElement("li")
   // sort of typed variable
   , num0 = 0, num1 = 0, num2 = 0, num3 = 0, arr0 = [], arr1 = [], str0 = "", str1 = "", obj0 = {}
-  
+
   , fromserver = {
-      "###"             :function() { debugger; }
+      ""                :function() { debugger; }
     , "centermsg"       :function(obj) { fromserver_message({"type":"center-message","message":obj.msg}); }
     , "join"            :fromserver_join
     , "left"            :fromserver_left
@@ -23,50 +22,49 @@ var socket = {"close": function(){}}
     , "online"          :fromserver_online
     , "refresh"         :function() { createLine('You might want to refresh ...'); }
     , "update"          :fromserver_update
+    , "updateCount"     :function() {}
   }
   , commands = {
-        "###"              :[0, 2, "", command_error]
-      , "/clear"           :[0, 3, "Clear chat history."
+        ""                 :[-1, 2, command_error]
+      , "~clear"           :[0, 3, "Clear chat history."
                             , command_clear]
-      , "/kill"            :[0, 3, "Kill the connection."
-                            , function() { socket.close(); }]
-      , "/list"            :[0, 3, "Show a list of all the people connected."
-                            , command_list]
-      , "/unregister"      :[0, 0, "Unregister your nick."
+      , "~kill"            :[0, 3, "Kill the connection."
+                            , function() { socket.close() }]
+      , "~unregister"      :[0, 0, "Unregister your nick."
                             ]
-      , "/whoami"          :[0, 0, ""
+      , "~whoami"          :[0, 0, ""
                             ]
-      , "/anon"            :[1, 0, "Send a message anonymously."
+      , "~anon"            :[1, 0, "Send a message anonymously."
                             , "message"]
-      , "/echo"            :[1, 4, "Send a message to yourself."
+      , "~echo"            :[1, 4, "Send a message to yourself."
                             , "text", command_echo]
-      , "/elbot"           :[1, 0, "Not usable as of now ..."
+      , "~elbot"           :[1, 0, "Not usable as of now ..."
                             , "message"]
-      , "/help"            :[1, 4, "Show help for commands."
+      , "~help"            :[1, 4, "Show help for commands."
                             , "command", command_help]
-      , "/mask"            :[1, 0, ""
+      , "~mask"            :[1, 0, ""
                             , "vHost"]
-      , "/me"              :[1, 0, ""
+      , "~me"              :[1, 0, ""
                             , "message"]
-      , "/msg"             :[1, 0, ""
+      , "~msg"             :[1, 0, ""
                             , "message"]
-      , "/nick"            :[1, 0, "Change your nick."
+      , "~nick"            :[1, 0, "Change your nick."
                             , "nick"]
-      , "/part"            :[1, 0, ""
+      , "~part"            :[1, 0, ""
                             , "message"]
-      , "/speak"           :[1, 0, ""
+      , "~speak"           :[1, 0, ""
                             , "message"]
-      , "/verify"          :[1, 0, ""
+      , "~verify"          :[1, 0, ""
                             , "reenter_password"]
-      , "/whois"           :[1, 0, ""
+      , "~whois"           :[1, 0, ""
                             , "nick"]
-      , "/change_password" :[2, 0, "Change your password."
+      , "~change_password" :[2, 0, "Change your password."
                             , "old_password", "new_password"]
-      , "/login"           :[2, 0, ""
+      , "~login"           :[2, 0, ""
                             , "nick", "password"]
-      , "/pm"              :[2, 0, "Send a personnal message."
+      , "~pm"              :[2, 0, "Send a personnal message."
                             , "nick", "message"]
-      , "/register"        :[2, 0, ""
+      , "~register"        :[2, 0, ""
                             , "email_address", "initial_password"]
   };
 // utility functions
@@ -74,6 +72,9 @@ function HTMLescape(text) {
   var div = document.createElement("div");
   div.appendChild(document.createTextNode(text)); // I do so love black-boxes
   return div.innerHTML;
+}
+function nick(nick) {
+  return '<samp>' + HTMLescape(nick) + '</samp>';
 }
 function new_message() {
   if (active == 1) {
@@ -92,84 +93,20 @@ function createLine(HTML) {
   li.innerHTML = HTML;
   ul.appendChild(li);
   li.scrollIntoView(false);
-}
-function id_nick(id) {
-  num0 = online_code.indexOf(id);
-  return HTMLescape((num0 == -1)
-    ? ("\xAB" + id + "\xBB")
-    : (online_nick[num0]));
-}
-function nick_color(nick) {
-  num0 = online_nick.indexOf(nick);
-  return (num0 == -1)
-    ? ('<samp class="bad_nick">' + HTMLescape(nick) + '</samp>')
-    : ('<span style=' + online_meow[num0] + '>' + HTMLescape(nick) + '</span>');
+  return li;
 }
 // fromserver = things the server send
 function fromserver_join(obj) {
-  str0 = 'background:#';
-  num0 = 0;
-  for (num1 = 0, num2 = obj.id.length; num1 != num2; num1 ++) {
-    num0 = (num0 << 5) - num0 + obj.id.charCodeAt(num1++);
-  }
-  num0 >>>= 8; num1 = num0 & 255; str0 = str0 + (num0 + 0x1000000).toString(16).slice(1);
-  num0 >>>= 8; num2 = num0 & 255;
-  num0 >>>= 8; num3 = num0 & 255;
-  str0 = str0 + ';color:' + (Math.max(num1, num2, num3) + Math.min(num1, num2, num3) > 256 ? 'black' : 'white');
-  
-  online_nick.push(obj.nick);
-  online_code.push(obj.id);
-  online_meow.push(str0);
-  online_l++;
-  
-  li = document.createElement("li");
-  li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' join';
-  li.classList.add("join"); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(nick(obj.nick) + ' join').classList.add("join");
 }
 function fromserver_left(obj) {
-  num0 = online_code.indexOf(obj.id);
-  if (num0 == -1) {
-    debugger;
-    return new_message('fromserver_left');
-  }
-  
-  online_meow.splice(num0, 1);
-  online_code.splice(num0, 1);
-  online_nick.splice(num0, 1);
-  online_l--;
-  
-  li = document.createElement("li");
-  if (!!obj.part) {
-    str0 = ' ' + HTMLescape(obj.part);
-  } else {
-    str0 = ''
-  }
-  li.innerHTML = '<samp>[' + HTMLescape(obj.id) + ']</samp>' + HTMLescape(obj.nick) + ' left' + str0;
-  li.classList.add("left"); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(nick(obj.nick) + ' left').classList.add("left");
 }
 function fromserver_nick(obj) {
-  num0 = online_code.indexOf(obj.id);
-  if (num0 == -1) {
-    debugger;
-    return new_message('fromserver_nick');
-  }
-  str0 = online_nick[num0];
-  
-  online_nick[num0] = obj.nick;
-  
-  li = document.createElement("li");
-  li.innerHTML = '<samp>[' + obj.id + ']</samp>' + HTMLescape(str0) + ' is now known as ' + HTMLescape(obj.nick);
-  li.classList.add("nick"); // can't use createLine
-  ul.appendChild(li);
-  li.scrollIntoView(false);
+  createLine(nick(obj.nick) + ' is now the nick of someone').classList.add("nick");
 }
 function fromserver_online(obj) {
   obj.forEach(fromserver_join);
-  socket.send(suplement);
 }
 function fromserver_message(message) {
   new_message();
@@ -178,31 +115,27 @@ function fromserver_message(message) {
       createLine(HTMLescape(message.message));
       break;
     case "anon-message":
-      createLine(nick_color(message.name) + HTMLescape(" = " + message.message));
+      createLine(nick(message.name) + HTMLescape(" = " + message.message));
       break;
     case "center-message": // fake type, but whatever
-      li = document.createElement("li");
-      li.innerHTML = HTMLescape(message.message);
-      li.classList.add("centermsg"); // can't use createLine
-      ul.appendChild(li);
-      li.scrollIntoView(false);
+      createLine(message.message).classList.add("centermsg");
       break;
     case "chat-message":
       if (message.message.length > 488) {
         message.message = "Too long...";
       }
       li = document.createElement("li");
-      li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
+      li.innerHTML = nick(message.nick) + HTMLescape(" : " + message.message);
       li.setAttribute("meta-hat", message.hat); // can't use createLine
       li.setAttribute("meta-count", message.count); // ditto
       ul.appendChild(li);
       li.scrollIntoView(false);
       break;
     case "elbot-message":
-      createLine(nick_color(message.nick) + HTMLescape(" > " + message.message));
+      createLine(nick(message.nick) + HTMLescape(" > " + message.message));
       break;
     case "elbot-response":
-      createLine(nick_color(message.nick) + HTMLescape(" < " + message.message));
+      createLine(nick(message.nick) + HTMLescape(" < " + message.message));
       break;
     case "error-message":
       createLine('ERROR: ' + HTMLescape(message.message));
@@ -211,27 +144,13 @@ function fromserver_message(message) {
       createLine('GENERAL: ' + HTMLescape(message.message));
       break;
     case "personal-message":
-      str0  = "{";
-      str0 += id_nick(message.from);
-      str0 += " ==> ";
-      str0 += id_nick(message.to);
-      str0 += "}: ";
-      str0 += message.message;
-      createLine(HTMLescape(str0));
+      createLine("{"+ nick(message.nick) + "}:"+ HTMLescape(message.message));
       break;
     case "spoken-message":
-      li = document.createElement("li");
-      li.innerHTML = nick_color(message.nick) + HTMLescape(" : " + message.message);
-      li.setAttribute("meta-voice", message.voice); // can't use createLine
-      ul.appendChild(li);
-      li.scrollIntoView(false);
+      createLine(nick(message.nick) + HTMLescape(" : " + message.message)).setAttribute("meta-voice", message.voice);
       break;
     case "system-message":
-      li = document.createElement("li");
-      li.innerHTML = HTMLescape(message.message);
-      li.classList.add("system"); // can't use createLine
-      ul.appendChild(li);
-      li.scrollIntoView(false);
+      createLine(HTMLescape(message.message)).classList.add("system");
       break;
     default:
       console.log(message);
@@ -247,13 +166,16 @@ function fromserver_update(obj) {
       case "chat_style":
       case "frame_src":
       case "id":
+      case "login":
       case "nick":
       case "notification":
       case "part":
       case "password":
+      case "private":
       case "role":
       case "theme":
       case "vHost":
+      case "whitelist":
         update[str0] = obj[str0];
         break;
       case "topic":
@@ -276,17 +198,12 @@ function command_clear() {
 function command_echo(obj) {
   createLine(HTMLescape(obj.text));
 }
-function command_list() {
-  for (num0 = 0;num0 != online_l;num0++) {
-    createLine('<samp>' + HTMLescape(online_code[num0]) + '</samp> ' + nick_color(online_nick[num0]));
-  }
-}
 function command_help(obj) {
   switch (obj.command.trim()) {
     case "":
       createLine('command: Current commands:');
       for (str0 in commands) {
-        if (str0 == "###") continue;
+        if (str0 == "") continue;
         str1  = "command: "
         str1 += str0;
         arr0 = commands[str0];
@@ -355,30 +272,17 @@ function socket_message(event) {
         case "0": // connect
           if (/[?&](nick|(user)?name)=[^&]/.test(location_search)) { // nick / username / name
             str1 = unescape(decodeURIComponent(location_search.match(/[?&](nick|(user)?name)=(.*?)(&|$)/)[3]));
-            if (/[?&]pass(word)?=[^&]/.test(location_search)) { // pass / password
-              str0 = str0 = unescape(decodeURIComponent(location_search.match(/[?&]pass(word)?=(.*?)(&|$)/)[2]));
-            } else {
-              str0 = "";
-            }
           } else {
             str1 = sid;
-            str0 = "";
           }
-          socket.send("42" + channel_ + JSON.stringify(["join", {"nick":str1, "password":str0}]));
-          if (str1 == sid) {
-            // this is actaully invalid (so you get a new default nick) but it does not trigger the error message
-            suplement = "42" + channel_ + JSON.stringify(["command", {"name":"nick", "params":{"nick":" "}}]);
-          } else {
-            suplement = "42" + channel_ + JSON.stringify(["command", {"name":"part",
-              "params":{"message":"https://github.com/5FE6EB50C7B537A9/totally-not-spooks"}}]);
-          }
+          socket.send("42" + channel_ + JSON.stringify(["join", {"nick":str1}]));
           break;
         case "1": // disconnect
-          // socket_setup();
+          socket_setup();
           break;
         case "2": // event
           arr0 = JSON.parse(str0.substring(num0));
-          (fromserver[arr0[0]] || fromserver["###"])(arr0[1]);
+          (fromserver[arr0[0]] || fromserver[""])(arr0[1]);
           break;
         case "4": // error
           createLine('44: ' + HTMLescape(JSON.parse(str0.substring(num0))));
@@ -395,7 +299,8 @@ function socket_setup() {
     clearTimeout(pingTimeout);
   }
   socket.close();
-  socket = new WebSocket("ws://ws.spooks.me/socket.io/?transport=websocket");
+  socket = new WebSocket("ws://37.48.64.47/socket.io/?transport=websocket");
+  //socket = new WebSocket("wss://ws.spooks.me/socket.io/?transport=websocket");
   socket.addEventListener("close", function socket_close(event) {
     console.log("close %O", event);
     if (event.code != "1000") {
@@ -426,19 +331,18 @@ form.addEventListener("submit", function(event) {
   if (socket.readyState != socket.OPEN) {
     return;
   }
-  str0 = unescape(encodeURIComponent(input.value)); // I have no clue why this is (still) needed ...
-  if (str0.charAt(0) == "/" && /^\/\w\w+/.test(str0)) {
+  str0 = input.value;
+  if (str0.charAt(0) == "~" && /^~\w{2,}(?: .+)?/.test(str0)) {
     obj0 = {};
-    str1 = str0.match(/^\/\w\w+/)[0];
-    arr0 = commands[str1] || commands["###"];
-    num0 = arr0[0];
-    switch(num0) {
+    str1 = str0.match(/^~\w+/)[0];
+    arr0 = commands[str1] || commands[""];
+    switch (arr0[0]) {
       case 1:
-        arr1 = str0.match(/^\/\w+ (.+)$/) || ["", ""];
+        arr1 = str0.match(/^~\w+ (.+)$/) || ["", ""];
         obj0[arr0[3]] = arr1[1];
         break;
       case 2:
-        arr1 = str0.match(/^\/\w+ ((?:~.|[^~ ])+) (.+)$/) || ["", "", ""]; // meh, this will do
+        arr1 = str0.match(/^~\w+ ((?:~.|[^~ ])+) (.+)$/) || ["", "", ""];
         obj0[arr0[3]] = arr1[1].replace(/~(.)/g, "$1");
         obj0[arr0[4]] = arr1[2];
         break;
