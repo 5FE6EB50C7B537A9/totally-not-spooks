@@ -1,6 +1,7 @@
 "use strict";
 var socket = new WebSocket("ws://localhost:8080/")
-  , own_ID = ""
+  , self_fake = "", self_true = ""
+  , channels = {}
   // DOM elements
   , form = document.body.lastElementChild
   , input = form.firstElementChild
@@ -16,6 +17,19 @@ function update_input_state() {
     requestAnimationFrame(update_input_state);
   }
 };
+function hash(string) {
+  var index = 0, hash = 0;
+  while (index !== 64) {
+    hash += string.charCodeAt(index);
+    hash += hash << 10;
+    hash ^= hash >>> 6;
+    index ++;
+  }
+  hash += hash << 3;
+  hash ^= hash >>> 11;
+  hash += hash << 15;
+  return ((hash &0xFFFFFFFF) +0x100000000).toString(16).substring(1).toUpperCase();
+}
 function HTMLescape(text) {
   var div = document.createElement("div");
   div.appendChild(document.createTextNode(text)); // I do so love black-boxes
@@ -38,8 +52,12 @@ function string2buffer(string) {
   }
   return buffer;
 };
-function buffer2string(buffer) {
-  return String.fromCharCode.apply(null, new Uint8Array(buffer));
+function buffer2string(buffer, first, length) {
+  if (length === undefined) {
+    return String.fromCharCode.apply(null, new Uint8Array(buffer, first));
+  } else {
+    return String.fromCharCode.apply(null, new Uint8Array(buffer, first, length));
+  }
 };
 function concat_buffers(buffer1, buffer2) {
   var array = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
@@ -68,16 +86,24 @@ socket.addEventListener("open", function socket_onopen(open) {
   console.log("socket_onopen", open);
 });
 socket.addEventListener("message", function socket_onmessage(message) {
-  var view;
+  var str0 = "";
   if (message.data.constructor === String) {
     socket.close();
   } else {
-    view = DataView(message.data);
-    switch (view.getUint8(0)) {
+    switch (DataView(message.data).getUint8(0)) {
       case 0x80:
+        self_true = buffer2string(message.data, 1, 64);
         break;
       case 0x81:
-        append_line(buffer2string(message.data).substring(1));
+        self_fake = buffer2string(message.data, 1, 64);
+        break;
+      case 0x82:
+        str0 = buffer2string(message.data, 1, 64);
+        if (str0 === self_fake || str0 === self_true) {
+          append_line("you: "+ buffer2string(message.data, 64).substring(1));
+        } else {
+          append_line(hash(str0) +": "+ buffer2string(message.data, 64).substring(1));
+        }
         break;
     }
   }

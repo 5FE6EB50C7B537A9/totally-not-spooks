@@ -135,6 +135,7 @@ server_ws.on("connection", function server_ws_connection(socket) {
   };
   
   socket.send(new Buffer("80"+this_id_real_string, "hex"));
+  socket.send(new Buffer("81"+this_id_fake_string, "hex"));
   
   socket.on("error", function socket_onerror(error) {
     console.dir({"name":arguments.callee.name, "error":error}, {"colors":true, "depth":2});
@@ -154,8 +155,10 @@ server_ws.on("connection", function server_ws_connection(socket) {
       }
       switch (data[0]) {
         case 0x00:
-          data.writeUInt8(0x81, 0);
-          socket.send(data);
+          data = new Buffer("82"+ this_id_fake_string + data.toString("hex").substring(2), "hex");
+          server_ws.clients.forEach(function(socket) {
+            socket.send(data);
+          });
           break;
         case 0x01:
           break;

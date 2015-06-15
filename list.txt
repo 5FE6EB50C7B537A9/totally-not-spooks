@@ -1,9 +1,15 @@
 point     text
 0x00      message
-0x01      auth
-0x02      nick
-0x03      join
-0x04      leave
+0x01      register
+0x02      verify
+0x03      auth
+0x04      nick
+0x05      join
+0x06      own
+0x07      title
+0x08      unown
+0x09      leave
 
-0x80      server update for ID
-0x81      regular message
+0x80      server update for true ID
+0x81      server update for fake ID
+0x82      regular message
